@@ -202,7 +202,7 @@
               "displayName": "User Agent",
               "required": false,
               "defaultMatch": false,
-              "display": true
+              "display": true,
               "type": "string",
               "canBeUsedToMatch": true
             },
