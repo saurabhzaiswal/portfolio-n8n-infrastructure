@@ -38,6 +38,9 @@ This repository deploys a self-hosted n8n instance on Render using:
 
 ## Current Workflow
 
+<img width="1625" height="515" alt="image" src="https://github.com/user-attachments/assets/5e10e644-3185-44bf-bf3f-136161f0502a" />
+
+
 ```mermaid
 flowchart LR
     Webhook["Contact Form Webhook"]
