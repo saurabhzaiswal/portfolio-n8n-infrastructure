@@ -1,0 +1,538 @@
+{
+  "name": "Portfolio Contact Form",
+  "nodes": [
+    {
+      "parameters": {
+        "chatId": "YOUR_TELEGRAM_CHAT_ID",
+        "text": "=**📩 New Portfolio Lead**\n\n**👤 Name**: {{ $json.name }}\n\n**📧 Email**: {{ $json.email }}\n\n**📝 Subject**: {{ $json.subject }}\n\n**💬 Message**: {{ $json.message }}\n\n**🌐 IP Address**: {{ $json.ip || \"Not available\" }}\n\n**💻 Browser / Device**: {{ $json.userAgent || \"Not available\" }}\n\n**🕒 Time**: {{ DateTime.fromISO($json.timestamp).setZone('Asia/Kolkata').toFormat('dd LLL yyyy hh:mm a') }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [1600, -464],
+      "id": "cf09eb48-888a-4664-9f56-db4cb847d4c2",
+      "name": "Send a text message"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "contact",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "={{ 'https://YOUR_PORTFOLIO_DOMAIN.com' }}"
+        }
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [32, -256],
+      "id": "51df6a3d-cd14-4d1c-bbab-3626a948e3d6",
+      "name": "Webhook"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{\n  {\n    success: true,\n    message: \"Thank you! Your message has been received successfully.\"\n  }\n}}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [2048, -448],
+      "id": "44ec0a74-0bac-4e06-a929-0e90e487b42c",
+      "name": "Respond to Webhook"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const body = $json.body ?? {};\n\nfunction cleanText(value, maxLength) {\n  return String(value ?? '')\n    .replace(/\\u0000/g, '')\n    .replace(/<script\\b[^>]*>[\\s\\S]*?<\\/script>/gi, '')\n    .replace(/<style\\b[^>]*>[\\s\\S]*?<\\/style>/gi, '')\n    .replace(/<[^>]*>/g, '')\n    .replace(/\\s{3,}/g, ' ')\n    .trim()\n    .slice(0, maxLength);\n}\n\nfunction isValidEmail(email) {\n  return /^[^\\s@]+@[^\\s@]+\\.[^\\s@]{2,}$/i.test(email);\n}\n\nfunction containsSuspiciousContent(value) {\n  const suspiciousPatterns = [\n    /javascript:/i,\n    /data:text\\/html/i,\n    /onerror\\s*=/i,\n    /onclick\\s*=/i,\n    /onload\\s*=/i,\n    /<script/i,\n    /<iframe/i,\n  ];\n\n  return suspiciousPatterns.some((pattern) => pattern.test(value));\n}\n\nconst rawName = String(body.name ?? '');\nconst rawEmail = String(body.email ?? '');\nconst rawSubject = String(body.subject ?? '');\nconst rawMessage = String(body.message ?? '');\nconst turnstileToken = String(\n  body.turnstileToken ??\n  body['cf-turnstile-response'] ??\n  ''\n).trim();\n\nconst name = cleanText(rawName, 100);\nconst email = cleanText(rawEmail, 254).toLowerCase();\nconst subject = cleanText(rawSubject, 150);\nconst message = cleanText(rawMessage, 5000);\nconst website = cleanText(body.website, 500);\n\nconst errors = [];\n\n\nif (!name) {\n  errors.push('Name is required.');\n} else if (name.length < 2) {\n  errors.push('Name must contain at least 2 characters.');\n}\n\nif (!email) {\n  errors.push('Email is required.');\n} else if (!isValidEmail(email)) {\n  errors.push('Please enter a valid email address.');\n}\n\nif (!subject) {\n  errors.push('Subject is required.');\n} else if (subject.length < 3) {\n  errors.push('Subject must contain at least 3 characters.');\n}\n\nif (!message) {\n  errors.push('Message is required.');\n} else if (message.length < 10) {\n  errors.push('Message must contain at least 10 characters.');\n}\n\nif (!turnstileToken) {\n  errors.push('Security verification is required.');\n}\n\nconst hasSuspiciousContent = [\n  rawName,\n  rawEmail,\n  rawSubject,\n  rawMessage,\n].some(containsSuspiciousContent);\n\nif (hasSuspiciousContent) {errors.push('The submitted content contains unsupported markup.');}\n\nreturn {\n  json: {\n    name,\n    email,\n    subject,\n    message,\n    isSpam: website.length > 0,\n    turnstileToken,\n\n    isValid: errors.length === 0,\n    errors,\n\n    hasSuspiciousContent,\n\n    timestamp: new Date().toISOString(),\n\n    ip:\n      $json.headers?.['x-forwarded-for']\n        ?.split(',')[0]\n        ?.trim() ?? '',\n\n    userAgent: $json.headers?.['user-agent'] ?? '',\n  },\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [256, -256],
+      "id": "2a5487cb-729e-42ae-93dc-285607f3a5d2",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "41241aeb-e9a2-4821-a617-7e910f30c28f",
+              "leftValue": "={{ $json.isSpam }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [480, -256],
+      "id": "4257e179-87fd-4d1b-9165-d346226de28c",
+      "name": "Is Spam?"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "09f9ddca-8f67-4dc1-9a59-462a321df075",
+              "leftValue": "={{ $json.isValid }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [704, -176],
+      "id": "47540ad0-eec8-4181-9a9d-666f893b0a41",
+      "name": "Is Valid?"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID",
+          "mode": "list",
+          "cachedResultName": "Portfolio Leads"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Leads"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Timestamp": "={{ $json.timestamp }}",
+            "Name": "={{ $json.name }}",
+            "Email": "={{ $json.email }}",
+            "IP": "={{ $json.ip || \"Not available\" }}",
+            "Message": "={{ $json.message }}",
+            "Subject": "={{ $json.subject }}",
+            "User Agent": "={{ $json.userAgent || \"Not available\" }}",
+            "Status": "New",
+            "Source": "Portfolio"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Timestamp",
+              "displayName": "Timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Name",
+              "displayName": "Name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Email",
+              "displayName": "Email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Subject",
+              "displayName": "Subject",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Message",
+              "displayName": "Message",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "IP",
+              "displayName": "IP",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "User Agent",
+              "displayName": "User Agent",
+              "required": false,
+              "defaultMatch": false,
+              "display": true
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Status",
+              "displayName": "Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Source",
+              "displayName": "Source",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [1600, -272],
+      "id": "58307534-6033-4cd2-8b45-cb030bcd33fa",
+      "name": "Append row in sheet"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [1824, -368],
+      "id": "e4c8198c-432c-4217-9d93-0034a2613501",
+      "name": "Merge"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{\n  {\n    success: false,\n    message: \"Please check the submitted information.\",\n    errors: $json.errors\n  }\n}}",
+        "options": {
+          "responseCode": 422
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [928, -80],
+      "id": "a57b9070-ab69-4f8f-b9ba-17bbb4f6c955",
+      "name": "Invalid Respond to Webhook"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://challenges.cloudflare.com/turnstile/v0/siteverify",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "secret",
+              "value": "YOUR_TURNSTILE_SECRET_KEY"
+            },
+            {
+              "name": "response",
+              "value": "={{ $json.turnstileToken }}"
+            },
+            {
+              "name": "remoteip",
+              "value": "={{ $json.ip }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [928, -272],
+      "id": "eca772d8-07c6-4ea2-aa58-fdfc101db909",
+      "name": "Verify Turnstile"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "802d2f68-40a6-46b5-a4f0-913ff0e34640",
+              "leftValue": "={{ $json.success }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [1152, -272],
+      "id": "69e09231-cda1-406b-8e5a-337eafb9b0d8",
+      "name": "Is Turnstile Valid?"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "50c9a061-f85f-4434-b202-f2c0035745cc",
+              "name": "name",
+              "value": "={{ $('Code in JavaScript').item.json.name }}",
+              "type": "string"
+            },
+            {
+              "id": "d76e3b6b-3b9a-41d4-aa01-a1b7eee2c4ea",
+              "name": "email",
+              "value": "={{ $('Code in JavaScript').item.json.email }}",
+              "type": "string"
+            },
+            {
+              "id": "c70f114f-2b1a-4bfa-a146-cc9c76d1f8ab",
+              "name": "subject",
+              "value": "={{ $('Code in JavaScript').item.json.subject }}",
+              "type": "string"
+            },
+            {
+              "id": "fa52eef4-135b-4f52-b4a7-6f1fc6387ce9",
+              "name": "message",
+              "value": "={{ $('Code in JavaScript').item.json.message }}",
+              "type": "string"
+            },
+            {
+              "id": "47578cfb-9dfe-4697-8a38-70456d0b7df1",
+              "name": "ip",
+              "value": "={{ $('Code in JavaScript').item.json.ip }}",
+              "type": "string"
+            },
+            {
+              "id": "782bf1b8-fdf1-4da0-8693-1a8fb60f89ea",
+              "name": "userAgent",
+              "value": "={{ $('Code in JavaScript').item.json.userAgent }}",
+              "type": "string"
+            },
+            {
+              "id": "4c2d1de0-7de0-40d0-aed8-a4d9e8e0248b",
+              "name": "timestamp",
+              "value": "={{ $('Code in JavaScript').item.json.timestamp }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [1376, -368],
+      "id": "cbddc163-553b-4c54-8b0e-63481c80ebcf",
+      "name": "Restore Contact Data"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{\n  {\n    success: false,\n    message: \"Security verification failed. Please refresh and try again.\"\n  }\n}}",
+        "options": {
+          "responseCode": 403
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [1376, -176],
+      "id": "d55031df-bd5c-4743-bbeb-d017341e9b6b",
+      "name": "Verification Failed"
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send a text message": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Is Spam?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Spam?": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Is Valid?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Valid?": {
+      "main": [
+        [
+          {
+            "node": "Verify Turnstile",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Invalid Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append row in sheet": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verify Turnstile": {
+      "main": [
+        [
+          {
+            "node": "Is Turnstile Valid?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Turnstile Valid?": {
+      "main": [
+        [
+          {
+            "node": "Restore Contact Data",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Verification Failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Restore Contact Data": {
+      "main": [
+        [
+          {
+            "node": "Send a text message",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Append row in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  
+  "tags": []
+}

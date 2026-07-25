@@ -1,0 +1,12 @@
+.env
+.env.*
+!.env.example
+
+workflows/raw/
+*.private.json
+*.secrets.json
+
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

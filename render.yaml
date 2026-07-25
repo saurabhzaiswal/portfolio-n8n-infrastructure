@@ -20,9 +20,9 @@ services:
 
     # All environment variables defined below are required!
     #
-    # You can define additional environment variables as needed.
+    # You can define additional environment variables as needed.  
     envVars:
-      # Generates a base64-encoded key for
+     # Generates a base64-encoded key for
       # encrypting credentials in n8n
       #
       # Do not modify this value after it's generated!
@@ -32,7 +32,7 @@ services:
         generateValue: true
 
       # These automatically populate connection details 
-      # for the Render Postgres database defined below
+      # for the Render Postgres database defined below  
       - key: DB_TYPE
         value: postgresdb
       - key: DB_POSTGRESDB_DATABASE
@@ -51,6 +51,16 @@ services:
         fromDatabase:
           name: n8n-db
           property: user
+      - key: N8N_PROTOCOL
+        value: https
+      - key: N8N_PROXY_HOPS
+        value: "1"
+      - key: GENERIC_TIMEZONE
+        value: Asia/Kolkata
+      - key: TZ
+        value: Asia/Kolkata
+      - key: NODE_OPTIONS
+        value: --max-old-space-size=384
 
 databases:
   - name: n8n-db
